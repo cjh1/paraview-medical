@@ -39,6 +39,12 @@
                 name="Open files"
                 @click="userPromptFiles"
               />
+              <tool-button
+                size="40"
+                icon="mdi-content-save-all"
+                name="Save session"
+                @click="saveSession"
+              />
               <v-menu offset-x>
                 <template v-slot:activator="{ on, attrs }">
                   <div>
@@ -234,6 +240,8 @@ import {
   FileLoadFailure,
   DICOMLoadFailure,
 } from '../store/datasets';
+import { serialize }  from '../store/persistence'
+
 import { useImageStore } from '../store/datasets-images';
 import {
   onProxyManagerEvent,
@@ -424,7 +432,7 @@ export default defineComponent({
 
         if (loaded.length && (loadFirstDataset || loaded.length === 1)) {
           const selection = convertSuccessResultToDataSelection(loaded[0]);
-          dataStore.setPrimarySelection(selection);
+          //dataStore.setPrimarySelection(selection);
         }
 
         if (errored.length) {
@@ -453,6 +461,11 @@ export default defineComponent({
       fileEl.click();
     }
 
+    const saveSession = () => {
+      console.log("save session")
+      serialize();
+    }
+
     // --- template vars --- //
 
     const hasData = computed(() => imageStore.idList.length > 0);
@@ -476,6 +489,7 @@ export default defineComponent({
       openFiles,
       focusModule,
       hasData,
+      saveSession,
     };
   },
 });

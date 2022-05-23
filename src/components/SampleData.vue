@@ -71,6 +71,7 @@ export default defineComponent({
         inProgress[sample.name].state = ProgressState.Done;
 
         if (sampleFile) {
+          console.log(sampleFile)
           const [loadResult] = await datasetStore.loadFiles([sampleFile]);
           if (loadResult.loaded) {
             const selection = convertSuccessResultToDataSelection(loadResult);

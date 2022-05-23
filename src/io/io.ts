@@ -12,6 +12,8 @@ export const FILE_TYPES = Array.from(
   new Set(['vti', 'vtp', 'stl', 'dcm', 'zip', ...ITK_IMAGE_EXTENSIONS])
 );
 
+console.log(FILE_TYPES)
+
 /**
  * file magic database
  * Used to handle certain cases where files have no extension

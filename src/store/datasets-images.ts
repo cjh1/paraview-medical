@@ -77,7 +77,6 @@ export const useImageStore = defineStore('images', {
         set(this.metadata, id, metadata);
       }
     },
-
     deleteData(id: string) {
       if (id in this.dataIndex) {
         del(this.dataIndex, id);

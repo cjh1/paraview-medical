@@ -8,6 +8,7 @@ import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
 import { useView3DStore } from './views-3D';
 import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
+import { deserialize }  from './persistence';
 
 export const DataType = {
   Image: 'Image',
@@ -175,6 +176,12 @@ export const useDatasetStore = defineStore('dataset', {
       // process archives
       const allFiles = await extractArchivesRecursively(typedFiles);
 
+      // See if we are dealing with a state file
+      const stateFile = allFiles.find(f => f.name == 'manifest.json');
+      if (stateFile) {
+        return deserialize(allFiles);
+      }
+
       const dicoms = allFiles.filter(({ type }) => type === 'dcm');
       const otherFiles = allFiles.filter(({ type }) => type !== 'dcm');
 
@@ -188,6 +195,7 @@ export const useDatasetStore = defineStore('dataset', {
       const otherStatuses = Promise.all([
         ...otherFiles.map(async (file) => {
           const reader = FILE_READERS.get(file.type);
+          console.log(reader)
           if (reader) {
             try {
               const dataObj = await reader(file);
