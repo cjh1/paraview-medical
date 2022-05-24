@@ -9,10 +9,13 @@ import { FileLoadResult, useDatasetStore } from './datasets';
 import { FILE_READERS } from '../io';
 import { Data } from '@vue/composition-api';
 import { vec3, mat3, mat4 } from 'gl-matrix';
+import { SliceConfig, useView2DStore, WindowLevelConfig, ViewConfig } from './views-2D';
+import { Layout } from './views';
+import { getLPSAxisFromDir, LPSAxis, LPSAxisDir } from '@src/utils/lps';
 
 export type Manifest = { [name: string]: any };
 
-const  serializeImageStore = async (zip: JSZip, manifest: Manifest, ) => {
+const  serializeImageStore = async (zip: JSZip, manifest: Manifest) => {
 
     const imageStore = useImageStore();
     const datasetStore = useDatasetStore();
@@ -30,7 +33,7 @@ const  serializeImageStore = async (zip: JSZip, manifest: Manifest, ) => {
             id,
             'type': 'image',
             'path': path,
-            'metadata': imageStore.metadata[id],
+            'name': imageStore.metadata[id].name,
         })
 
         const imageData = dataIndex[id];
@@ -41,59 +44,82 @@ const  serializeImageStore = async (zip: JSZip, manifest: Manifest, ) => {
 
     const primarySelection = datasetStore.primarySelection;
     manifest.primarySelection = primarySelection;
-    zip.file('manifest.json', JSON.stringify(manifest));
-    const content = await zip.generateAsync({type:"blob"});
-    saveAs(content, "state.zip");
 }
 
+interface View {
+    id: string;
+    type: string;
+}
+
+interface View2D extends View {
+    direction: LPSAxisDir;
+    axis: LPSAxis;
+    window: WindowLevelConfig;
+    slice: SliceConfig;
+}
+
+const serializeView2DStore = async (zip: JSZip, manifest: Manifest) => {
+    const viewStore = useView2DStore();
+
+    if (!('views' in manifest)) {
+        manifest.views = {
+            views: [],
+            syncSlices: viewStore.syncSlices,
+            syncWindowing:viewStore.syncWindowing,
+        }
+    }
+
+    const views = manifest.views;
+    const viewsConfig = viewStore.viewConfigs;
+    const windowConfig = viewStore.wlConfigs;
+    const sliceConfig = viewStore.sliceConfigs;
 
 
+    for (const id in viewsConfig) {
+        const config = viewsConfig[id];
+        const window = windowConfig[id];
+        const slice = sliceConfig[id];
 
+        const view: View2D = {
+            id,
+            type: '2D',
+            ...config,
+            window,
+            slice,
+        }
+
+        manifest.views.views.push(view);
+    };
+}
+
+const serializeLayoutStore = async (zip: JSZip, manifest: Manifest) => {
+    const viewStore = useViewStore();
+
+    if (!('layout' in manifest)) {
+        manifest.layout = viewStore.layout;
+    }
+}
 
 const  serializeViewStore = async (zip: JSZip, manifest: Manifest, ) => {
+    const viewStore = useViewStore();
 
-    const imageStore = useImageStore();
-    const datasetStore = useDatasetStore();
-    const dataIndex = imageStore.$state.dataIndex;
-    if (!('dataSets' in manifest)) {
-        manifest.dataSets = []
-    }
-
-    const dataSets = manifest.dataSets;
-
-    for (const id in dataIndex) {
-        const path = `data/${id}.vti`;
-
-        dataSets.push({
-            id,
-            'type': 'image',
-            'path': path,
-            'metadata': imageStore.metadata[id],
-        })
-
-        const imageData = dataIndex[id];
-        const serializer = vtkXMLImageDataWriter.newInstance();
-        const serializedData = serializer.write(imageData)
-        zip.file(path, serializedData);
-    }
-
-    const primarySelection = datasetStore.primarySelection;
-    manifest.primarySelection = primarySelection;
-    zip.file('manifest.json', JSON.stringify(manifest));
-    const content = await zip.generateAsync({type:"blob"});
-    saveAs(content, "state.zip");
+    serializeView2DStore(zip, manifest);
+    serializeLayoutStore(zip, manifest);
 }
 
 
 
-export const serialize = () => {
+export const serialize = async () => {
     const zip = new JSZip();
 
     const manifest: Manifest = {};
 
     serializeImageStore(zip, manifest);
+    serializeViewStore(zip, manifest);
 
-
+    zip.file('manifest.json', JSON.stringify(manifest));
+    const content = await zip.generateAsync({type:"blob"});
+    saveAs(content, "state.zip");
 
 }
 
@@ -121,6 +147,21 @@ type DataSet = {
     id: string;
     name: string;
     path: string;
+}
+
+const deserializeView = (manifest: Manifest) => {
+    const view2DStore = useView2DStore();
+    const views = manifest.views;
+
+    views.forEach((view: View) => {
+        if (view.type === '2D') {
+            const view2D = view as View2D;
+
+        }
+    })
+
+
+
 }
 
 
@@ -188,6 +229,8 @@ export const deserialize = async (state: File[]) => {
             // We need to update the ID
             primarySelection.dataID = stateIDToStoreID[primarySelection.dataID];
             datasetStore.setPrimarySelection(primarySelection);
+
+            // Update the views
         }
 
         return statues;
