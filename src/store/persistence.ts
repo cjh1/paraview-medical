@@ -9,7 +9,8 @@ import { FileLoadResult, useDatasetStore } from './datasets';
 import { FILE_READERS } from '../io';
 import { Data } from '@vue/composition-api';
 import { vec3, mat3, mat4 } from 'gl-matrix';
-import { SliceConfig, useView2DStore, WindowLevelConfig, ViewConfig } from './views-2D';
+import { useView2DStore, } from './views-2D';
+import { SliceConfig, WindowLevelConfig, useDataView2DStore } from './data-views-2D';
 import { Layout } from './views';
 import { getLPSAxisFromDir, LPSAxis, LPSAxisDir } from '@src/utils/lps';
 
@@ -60,6 +61,7 @@ interface View2D extends View {
 
 const serializeView2DStore = async (zip: JSZip, manifest: Manifest) => {
     const viewStore = useView2DStore();
+    const dataViewStore = useDataView2DStore();
 
     if (!('views' in manifest)) {
         manifest.views = {
@@ -71,10 +73,10 @@ const serializeView2DStore = async (zip: JSZip, manifest: Manifest) => {
 
     const views = manifest.views;
     const viewsConfig = viewStore.viewConfigs;
-    const windowConfig = viewStore.wlConfigs;
-    const sliceConfig = viewStore.sliceConfigs;
+    const windowConfig = dataViewStore.wlConfigs;
+    const sliceConfig = dataViewStore.sliceConfigs;
 
-
+    // TODO fix up and user the getters
     for (const id in viewsConfig) {
         const config = viewsConfig[id];
         const window = windowConfig[id];
