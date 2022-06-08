@@ -1,0 +1,114 @@
+{
+    "version": 0.1,
+    "primarySelection": "<id>",
+    "dataSets": [
+        {
+            "id": "<id>",
+            "type": "image|dicom|model",
+            "path": "path/in/to/zip",
+            "metadata": {}
+        }
+    ],
+    "views": [
+        {
+            "id": "<id>",
+            "type": "2d|3d",
+            "viewDirection": "Inferior",
+            "viewUp": "Anterior"
+        }
+    ],
+    "layout": []
+}
+
+
+
+{
+    "dataSets": [
+        {
+            "id": "1",
+            "type": "image",
+            "path": "data/1.vti",
+            "name": "LIVER-CT.mha"
+        },
+        {
+            "id": "6",
+            "type": "image",
+            "path": "data/6.vti",
+            "name": "HEAD-MRA.mha"
+        },
+        {
+            "id": "1.2.276.0.50.192168001099.8687553.14547392.158.7015.051251220070511.0D994002S0D025497SN0D106349SN0D104309SN0D071144SN0D991997",
+            "type": "dicom",
+            "path": [
+                "data/1.2.276.0.50.192168001099.8687553.14547392.158.7015.051251220070511.0D994002S0D025497SN0D106349SN0D104309SN0D071144SN0D991997/case4b_001.dcm",
+                "data/1.2.276.0.50.192168001099.8687553.14547392.34.3015.051251220070511.0D991830SN0D000000SN0D127566SN0D034131S0D963541SN0D265374/case4a_001.dcm"
+            ]
+        }
+    ],
+    "primarySelection": {
+        "type": "image",
+        "dataID": "6"
+    },
+    "views": {
+        "views": [
+            {
+                "id": "2",
+                "type": "2D",
+                "direction": "Left",
+                "axis": "Coronal",
+                "window": {
+                    "width": 889,
+                    "level": 444.5,
+                    "min": 0,
+                    "max": 889
+                },
+                "slice": {
+                    "slice": 223,
+                    "min": 0,
+                    "max": 447
+                }
+            },
+            {
+                "id": "4",
+                "type": "2D",
+                "direction": "Anterior",
+                "axis": "Sagittal",
+                "window": {
+                    "width": 889,
+                    "level": 444.5,
+                    "min": 0,
+                    "max": 889
+                },
+                "slice": {
+                    "slice": 223,
+                    "min": 0,
+                    "max": 447
+                }
+            },
+            {
+                "id": "5",
+                "type": "2D",
+                "direction": "Inferior",
+                "axis": "Axial",
+                "window": {
+                    "width": 889,
+                    "level": 444.5,
+                    "min": 0,
+                    "max": 889
+                },
+                "slice": {
+                    "slice": 63,
+                    "min": 0,
+                    "max": 127
+                }
+            }
+        ],
+        "syncSlices": true,
+        "syncWindowing": true
+    },
+    "layout": {
+        "objType": "Layout",
+        "direction": "V",
+        "items": []
+    }
+}
