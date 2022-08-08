@@ -217,7 +217,12 @@ VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
   return newVolumeMap;
 }
 
-const json import(FileNamesContainer &files) {
+/**
+ * categorizeFiles extracts out the volumes contained within a set of DICOM files.
+ *
+ * Return a mapping of volume ID to the files containing the volume.
+ */
+const json categorizeFiles(FileNamesContainer &files) {
   // make tmp dir
   std::string tmpdir("tmp");
   makedir(tmpdir);
@@ -246,6 +251,7 @@ const json import(FileNamesContainer &files) {
   // The initial series UIDs are used as the basis for our volume IDs.
   VolumeMapType curVolumeMap;
   for (auto seriesUID : gdcmSeriesUIDs) {
+    std::cout << "in loop\n";
     curVolumeMap[seriesUID] =
         seriesFileNames->GetFileNames(seriesUID.c_str());
   }
@@ -253,58 +259,12 @@ const json import(FileNamesContainer &files) {
   // further restrict on orientation
   curVolumeMap = SeparateOnImageOrientation(curVolumeMap);
 
-  VolumeIDList allVolumeIDs;
-  for (const auto &entry : curVolumeMap) {
-    const std::string &volumeID = entry.first;
-    const FileNamesContainer &fileNames = entry.second;
+  fs::remove_all(tmpdir);
 
-    // move files to volume dir
-    // assume there will be no filename conflicts within a volume
-    makedir(volumeID);
-    for (auto filename : fileNames) {
-      auto dst = volumeID + "/" + filename.substr(tmpdir.size() + 1);
-      movefile(filename, dst);
-    }
-
-    allVolumeIDs.push_back(volumeID);
-  }
-  return json(allVolumeIDs);
+  return json(curVolumeMap);
 }
 
-/**
- * buildVolumeList exists to support multiple import() calls prior to building a
- * volume.
- *
- * This solves the issues
- */
-int buildVolumeList(const std::string &volumeID) {
-  if (dirExists(volumeID)) {
-    typedef itk::GDCMSeriesFileNames SeriesFileNames;
-    SeriesFileNames::Pointer seriesFileNames = SeriesFileNames::New();
-    seriesFileNames->SetDirectory(volumeID);
-    seriesFileNames->SetUseSeriesDetails(true);
-    seriesFileNames->SetGlobalWarningDisplay(false);
-    seriesFileNames->AddSeriesRestriction("0008|0021");
-    seriesFileNames->SetRecursive(false);
-    seriesFileNames->SetLoadPrivateTags(false);
 
-    VolumeIDList uids = seriesFileNames->GetSeriesUIDs();
-
-    if (uids.size() != 1) {
-      throw std::runtime_error("why are there more than 1 series/volume in this dir");
-    }
-
-    VolumeMap[volumeID] = seriesFileNames->GetFileNames(uids[0].c_str());
-    auto &map = VolumeMap[volumeID];
-    for (auto &filename : map) {
-      // trim off dir + "/"
-      filename = filename.substr(volumeID.size() + 1);
-    }
-    return map.size();
-  }
-  std::cerr << "Could not build volume " << volumeID << std::endl;
-  return 0;
-}
 
 const json readTags(const std::string &volumeID, unsigned long slice,
                     const TagList &tags) {
@@ -434,11 +394,10 @@ void buildVolume(const std::string &volumeID,
   }
 }
 
-void deleteVolume(const std::string &volumeID) { fs::remove_all(volumeID); }
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " [import|clear|remove]" << std::endl;
+    std::cerr << "Usage: " << argv[0] << " [categorize|clear|remove]" << std::endl;
     return 1;
   }
 
@@ -450,41 +409,43 @@ int main(int argc, char *argv[]) {
   std::cerr << "Action: " << action << ", runcount: " << ++rc
             << ", argc: " << argc << std::endl;
 
-  if (action == "import" && argc > 2) {
-    // dicom import output.json <FILES>
+  if (action == "categorize" && argc > 2) {
+    // dicom categorize output.json <FILES>
     std::string outFileName = argv[2];
     std::vector<std::string> rest(argv + 3, argv + argc);
 
-    json importInfo;
+    json info;
     try {
-      importInfo = import(rest);
+      info = categorizeFiles(rest);
     } catch (const std::runtime_error &e) {
       std::cerr << "Runtime error: " << e.what() << std::endl;
     } catch (const itk::ExceptionObject &e) {
       std::cerr << "ITK error: " << e.what() << std::endl;
     }
 
+    std::cout << info.dump(-1, true, ' ') << std::endl;
+
     std::ofstream outfile;
     outfile.open(outFileName);
-    outfile << importInfo.dump(-1, true, ' ', json::error_handler_t::ignore);
+    outfile << info.dump(-1, true, ' ', json::error_handler_t::ignore);
     outfile.close();
   } else if (action == "buildVolumeList") {
-    // dicom buildVolumeList output.json volumeID
-    std::string outFileName(argv[2]);
-    std::string volumeID(argv[3]);
-    json numSlices;
-    try {
-      numSlices = buildVolumeList(volumeID);
-    } catch (const itk::ExceptionObject &e) {
-      std::cerr << "ITK error: " << e.what() << std::endl;
-    } catch (const std::runtime_error &e) {
-      std::cerr << "Runtime error: " << e.what() << std::endl;
-    }
+    // // dicom buildVolumeList output.json volumeID
+    // std::string outFileName(argv[2]);
+    // std::string volumeID(argv[3]);
+    // json numSlices;
+    // try {
+    //   numSlices = buildVolumeList(volumeID);
+    // } catch (const itk::ExceptionObject &e) {
+    //   std::cerr << "ITK error: " << e.what() << std::endl;
+    // } catch (const std::runtime_error &e) {
+    //   std::cerr << "Runtime error: " << e.what() << std::endl;
+    // }
 
-    std::ofstream outfile;
-    outfile.open(outFileName);
-    outfile << numSlices.dump(-1, true, ' ', json::error_handler_t::ignore);
-    outfile.close();
+    // std::ofstream outfile;
+    // outfile.open(outFileName);
+    // outfile << numSlices.dump(-1, true, ' ', json::error_handler_t::ignore);
+    // outfile.close();
   } else if (action == "readTags" && argc > 4) {
     // dicom readTags output.json volumeID, slicenum [...tags]
     std::string outputFilename(argv[2]);
@@ -532,24 +493,24 @@ int main(int argc, char *argv[]) {
       std::cerr << e.what() << std::endl;
     }
   } else if (action == "deleteVolume" && argc == 3) {
-    // dicom deleteVolume volumeID
-    std::string volumeID(argv[3]);
+    // // dicom deleteVolume volumeID
+    // std::string volumeID(argv[3]);
 
-    try {
-      deleteVolume(volumeID);
-    } catch (const std::runtime_error &e) {
-      std::cerr << e.what() << std::endl;
-    }
+    // try {
+    //   deleteVolume(volumeID);
+    // } catch (const std::runtime_error &e) {
+    //   std::cerr << e.what() << std::endl;
+    // }
   } else if (action == "readTRE" && argc == 4) {
-    // dicom readTRE points.json TRE_FILE
-    std::string outFilename = argv[2];
-    std::string filename = argv[3];
-    json tre = readTRE(filename);
+    // // dicom readTRE points.json TRE_FILE
+    // std::string outFilename = argv[2];
+    // std::string filename = argv[3];
+    // json tre = readTRE(filename);
 
-    std::ofstream outfile;
-    outfile.open(outFilename);
-    outfile << tre.dump();
-    outfile.close();
+    // std::ofstream outfile;
+    // outfile.open(outFilename);
+    // outfile << tre.dump();
+    // outfile.close();
   }
 
   return 0;

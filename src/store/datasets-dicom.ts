@@ -117,86 +117,93 @@ export const useDICOMStore = defineStore('dicom', {
   }),
   actions: {
     async importFiles(files: File[]) {
+      console.log("before")
+
       const dicomIO = getCurrentInstance<DICOMIO>(DICOMIOInst);
+
+      console.log("after")
 
       if (!files.length) {
         return [];
       }
 
-      const updatedVolumes = await dicomIO.importFiles(files);
-      const updatedVolumeKeys: VolumeKeys[] = []; // to be returned to caller
+      const volumesToFilesMap = await dicomIO.categorizeFiles(files);
+      console.log(volumesToFilesMap);
+      // const updatedVolumeKeys: VolumeKeys[] = []; // to be returned to caller
 
-      await Promise.all(
-        updatedVolumes.map(async (volumeKey) => {
-          const numberOfSlices = await dicomIO.buildVolumeList(volumeKey);
+      // await Promise.all(
+      //   updatedVolumes.map(async (volumeKey) => {
+      //     const numberOfSlices = await dicomIO.buildVolumeList(volumeKey);
 
-          if (!(volumeKey in this.volumeInfo)) {
-            const info = await dicomIO.readTags(volumeKey, [
-              { name: 'PatientName', tag: '0010|0010', strconv: true },
-              { name: 'PatientID', tag: '0010|0020', strconv: true },
-              { name: 'PatientBirthDate', tag: '0010|0030' },
-              { name: 'PatientSex', tag: '0010|0040' },
-              { name: 'StudyInstanceUID', tag: '0020|000d' },
-              { name: 'StudyDate', tag: '0008|0020' },
-              { name: 'StudyTime', tag: '0008|0030' },
-              { name: 'StudyID', tag: '0020|0010', strconv: true },
-              { name: 'AccessionNumber', tag: '0008|0050' },
-              { name: 'StudyDescription', tag: '0008|1030', strconv: true },
-              { name: 'Modality', tag: '0008|0060' },
-              { name: 'SeriesInstanceUID', tag: '0020|000e' },
-              { name: 'SeriesNumber', tag: '0020|0011' },
-              { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
-            ]);
+      //     if (!(volumeKey in this.volumeInfo)) {
+      //       const info = await dicomIO.readTags(volumeKey, [
+      //         { name: 'PatientName', tag: '0010|0010', strconv: true },
+      //         { name: 'PatientID', tag: '0010|0020', strconv: true },
+      //         { name: 'PatientBirthDate', tag: '0010|0030' },
+      //         { name: 'PatientSex', tag: '0010|0040' },
+      //         { name: 'StudyInstanceUID', tag: '0020|000d' },
+      //         { name: 'StudyDate', tag: '0008|0020' },
+      //         { name: 'StudyTime', tag: '0008|0030' },
+      //         { name: 'StudyID', tag: '0020|0010', strconv: true },
+      //         { name: 'AccessionNumber', tag: '0008|0050' },
+      //         { name: 'StudyDescription', tag: '0008|1030', strconv: true },
+      //         { name: 'Modality', tag: '0008|0060' },
+      //         { name: 'SeriesInstanceUID', tag: '0020|000e' },
+      //         { name: 'SeriesNumber', tag: '0020|0011' },
+      //         { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
+      //       ]);
 
-            // TODO parse the raw string values
-            const patient = {
-              PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
-              PatientName: info.PatientName || ANONYMOUS_PATIENT,
-              PatientBirthDate: info.PatientBirthDate || '',
-              PatientSex: info.PatientSex || '',
-            };
-            const patientKey = genSynPatientKey(patient);
+      //       // TODO parse the raw string values
+      //       const patient = {
+      //         PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
+      //         PatientName: info.PatientName || ANONYMOUS_PATIENT,
+      //         PatientBirthDate: info.PatientBirthDate || '',
+      //         PatientSex: info.PatientSex || '',
+      //       };
+      //       const patientKey = genSynPatientKey(patient);
 
-            const studyKey = info.StudyInstanceUID;
-            const study = pick(
-              info,
-              'StudyID',
-              'StudyInstanceUID',
-              'StudyDate',
-              'StudyTime',
-              'AccessionNumber',
-              'StudyDescription'
-            );
+      //       const studyKey = info.StudyInstanceUID;
+      //       const study = pick(
+      //         info,
+      //         'StudyID',
+      //         'StudyInstanceUID',
+      //         'StudyDate',
+      //         'StudyTime',
+      //         'AccessionNumber',
+      //         'StudyDescription'
+      //       );
 
-            const volumeInfo = {
-              ...pick(
-                info,
-                'Modality',
-                'SeriesInstanceUID',
-                'SeriesNumber',
-                'SeriesDescription'
-              ),
-              NumberOfSlices: numberOfSlices,
-              VolumeID: volumeKey,
-            };
+      //       const volumeInfo = {
+      //         ...pick(
+      //           info,
+      //           'Modality',
+      //           'SeriesInstanceUID',
+      //           'SeriesNumber',
+      //           'SeriesDescription'
+      //         ),
+      //         NumberOfSlices: numberOfSlices,
+      //         VolumeID: volumeKey,
+      //       };
 
-            updatedVolumeKeys.push({
-              patientKey,
-              studyKey,
-              volumeKey,
-            });
+      //       updatedVolumeKeys.push({
+      //         patientKey,
+      //         studyKey,
+      //         volumeKey,
+      //       });
 
-            this._updateDatabase(patient, study, volumeInfo);
-          }
+      //       this._updateDatabase(patient, study, volumeInfo);
+      //     }
 
-          // invalidate any existing volume
-          if (volumeKey in this.volumeToImageID) {
-            // buildVolume requestor uses this as a rebuild hint
-            set(this.needsRebuild, volumeKey, true);
-          }
-        })
-      );
-      return updatedVolumeKeys;
+      //     // invalidate any existing volume
+      //     if (volumeKey in this.volumeToImageID) {
+      //       // buildVolume requestor uses this as a rebuild hint
+      //       set(this.needsRebuild, volumeKey, true);
+      //     }
+      //   })
+      // );
+      //return updatedVolumeKeys;
+
+      return [];
     },
 
     _updateDatabase(

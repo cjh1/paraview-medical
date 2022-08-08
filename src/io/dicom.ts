@@ -1,6 +1,6 @@
 import { mat3 } from 'gl-matrix';
-import runPipelineBrowser from 'itk/runPipelineBrowser';
-import IOTypes from 'itk/IOTypes';
+import { runPipeline } from 'itk-wasm';
+import { IOTypes } from 'itk-wasm';
 import { readFileAsArrayBuffer } from '@/src/io';
 import { defer, Deferred } from '../utils';
 import PriorityQueue from '../utils/priorityqueue';
@@ -10,6 +10,9 @@ export interface TagSpec {
   tag: string;
   strconv?: boolean;
 }
+
+// volume ID => list of file indexes
+export type VolumesToFilesMap = Record<string, number[]>;
 
 interface Task {
   deferred: Deferred<any>;
@@ -58,7 +61,7 @@ export class DICOMIO {
       // we don't want parallelization. This is to work around
       // an issue in itk.js.
       // eslint-disable-next-line no-await-in-loop
-      const result = await runPipelineBrowser(this.webWorker, ...runArgs);
+      const result = await runPipeline(this.webWorker, ...runArgs);
       deferred.resolve(result);
     }
 
@@ -77,6 +80,7 @@ export class DICOMIO {
         this.addTask('dicom', [], [], [])
           .then((result) => {
             if (result.webWorker) {
+              console.log(result);
               this.webWorker = result.webWorker;
               resolve();
             } else {
@@ -95,7 +99,7 @@ export class DICOMIO {
    * @param {File[]} files
    * @returns VolumeID[] a list of volumes parsed from the files
    */
-  async importFiles(files: File[]): Promise<string[]> {
+  async categorizeFiles(files: File[]): Promise<VolumesToFilesMap> {
     await this.initialize();
 
     const fileData = await Promise.all(
@@ -112,7 +116,7 @@ export class DICOMIO {
       // module
       'dicom',
       // args
-      ['import', 'output.json', ...fileData.map((fd) => fd.name)],
+      ['categorize', 'output.json', ...fileData.map((fd) => fd.name)],
       // outputs
       [{ path: 'output.json', type: IOTypes.Text }],
       // inputs
@@ -122,6 +126,9 @@ export class DICOMIO {
         data: new Uint8Array(fd.data),
       }))
     );
+
+    console.log('result')
+    console.log(result)
 
     return JSON.parse(result.outputs[0].data);
   }

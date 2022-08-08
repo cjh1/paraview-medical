@@ -177,7 +177,7 @@ export const useDatasetStore = defineStore('dataset', () => {
     const dicomStatus = dicomStore
       .importFiles(dicoms)
       .then((volumeKeys) =>
-        volumeKeys.map((volKey) => makeDICOMSuccessStatus(volKey.volumeKey))
+        []//volumeKeys.map((volKey) => makeDICOMSuccessStatus(volKey.volumeKey))
       )
       .catch((err) => [makeDICOMFailureStatus(err)]);
 
