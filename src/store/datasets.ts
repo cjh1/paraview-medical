@@ -8,6 +8,7 @@ import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
 import { useView3DStore } from './views-3D';
 import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
+import { useFileStore } from './files';
 
 export const DataType = {
   Image: 'Image',
@@ -108,6 +109,7 @@ export const useDatasetStore = defineStore('dataset', () => {
   const imageStore = useImageStore();
   const modelStore = useModelStore();
   const dicomStore = useDICOMStore();
+  const fileStore = useFileStore();
 
   // --- state --- //
 
@@ -177,7 +179,7 @@ export const useDatasetStore = defineStore('dataset', () => {
     const dicomStatus = dicomStore
       .importFiles(dicoms)
       .then((volumeKeys) =>
-        []//volumeKeys.map((volKey) => makeDICOMSuccessStatus(volKey.volumeKey))
+        volumeKeys.map((volKey) => makeDICOMSuccessStatus(volKey.volumeKey))
       )
       .catch((err) => [makeDICOMFailureStatus(err)]);
 
@@ -192,6 +194,8 @@ export const useDatasetStore = defineStore('dataset', () => {
                 file.name,
                 dataObj as vtkImageData
               );
+              fileStore.add(id, [file]);
+
               return makeFileSuccessStatus(file, 'image', id);
             }
             if (dataObj.isA('vtkPolyData')) {
@@ -199,6 +203,8 @@ export const useDatasetStore = defineStore('dataset', () => {
                 file.name,
                 dataObj as vtkPolyData
               );
+              fileStore.add(id, [file])
+
               return makeFileSuccessStatus(file, 'model', id);
             }
             return makeFileFailureStatus(
@@ -233,6 +239,8 @@ export const useDatasetStore = defineStore('dataset', () => {
       if (sel?.type === 'image' && sel.dataID === id) {
         primarySelection.value = null;
       }
+      // remove file store entry
+      fileStore.remove(id);
     });
   });
 
@@ -246,6 +254,9 @@ export const useDatasetStore = defineStore('dataset', () => {
       if (sel?.type === 'dicom' && volumeKey === sel.volumeKey) {
         primarySelection.value = null;
       }
+
+      // remove file store entry
+      fileStore.remove(volumeKey);
     });
   });
 

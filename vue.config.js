@@ -12,6 +12,8 @@ const ITK_WASM_INCLUDE = [
   'Nifti',
   'VTK',
   'BMP',
+  'GDCM',
+  'ReadDICOMTags'
 ];
 
 const itkConfig = path.resolve(__dirname, 'src', 'io', 'itk', 'itkConfig.js')
@@ -51,8 +53,10 @@ module.exports = {
             from: path.join(__dirname, 'node_modules', 'itk-image-io'),
             to: path.join(__dirname, 'dist', 'itk', 'image-io'),
             filter: (resourcePath) => {
+              console.log(resourcePath)
               return ITK_WASM_INCLUDE.some((prefix) =>
-                path.basename(resourcePath).startsWith(prefix)
+                true
+                //path.basename(resourcePath).startsWith(prefix)
               );
             },
           },

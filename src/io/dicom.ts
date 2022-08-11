@@ -1,7 +1,6 @@
-import { mat3 } from 'gl-matrix';
 import { runPipeline } from 'itk-wasm';
 import { IOTypes } from 'itk-wasm';
-import { readFileAsArrayBuffer } from '@/src/io';
+import { readDICOMTags, readImageDICOMFileSeries } from 'itk-wasm';
 import { defer, Deferred } from '../utils';
 import PriorityQueue from '../utils/priorityqueue';
 
@@ -11,8 +10,8 @@ export interface TagSpec {
   strconv?: boolean;
 }
 
-// volume ID => list of file indexes
-export type VolumesToFilesMap = Record<string, number[]>;
+// volume ID => file names
+export type VolumesToFilesMap = Record<string, string[]>;
 
 interface Task {
   deferred: Deferred<any>;
@@ -42,7 +41,7 @@ export class DICOMIO {
     this.queue.push(
       {
         deferred,
-        runArgs: [module, args, inputs, outputs],
+        runArgs: [module, args, outputs, inputs],
       },
       priority
     );
@@ -104,10 +103,11 @@ export class DICOMIO {
 
     const fileData = await Promise.all(
       files.map(async (file) => {
-        const buffer = await readFileAsArrayBuffer(file);
+        const buffer = await file.arrayBuffer();
         return {
-          name: file.name,
-          data: buffer,
+          path: file.name,
+          type: IOTypes.Binary,
+          data: new Uint8Array(buffer)
         };
       })
     );
@@ -116,15 +116,11 @@ export class DICOMIO {
       // module
       'dicom',
       // args
-      ['categorize', 'output.json', ...fileData.map((fd) => fd.name)],
-      // outputs
-      [{ path: 'output.json', type: IOTypes.Text }],
+      ['categorize', 'output.json', ...fileData.map((fd) => fd.path)],
       // inputs
-      fileData.map((fd) => ({
-        path: fd.name,
-        type: IOTypes.Binary,
-        data: new Uint8Array(fd.data),
-      }))
+      fileData,
+      // outputs
+      [{ path: 'output.json', type: IOTypes.Text }]
     );
 
     console.log('result')
@@ -134,50 +130,33 @@ export class DICOMIO {
   }
 
   /**
-   * Builds the volume slice order.
+   * Reads a list of tags out from a given file.
    *
-   * This should be done prior to readTags or buildVolume.
-   * @param {String} volumeID
-   */
-  async buildVolumeList(volumeID: string): Promise<number> {
-    const result = await this.addTask(
-      'dicom',
-      ['buildVolumeList', 'output.json', volumeID],
-      [{ path: 'output.json', type: IOTypes.Text }],
-      []
-    );
-    return JSON.parse(result.outputs[0].data);
-  }
-
-  /**
-   * Reads a list of tags out from a given volume ID.
-   *
-   * @param {String} volumeID
+   * @param {File} file
    * @param {[]Tag} tags
-   * @param {Integer} slice Defaults to 0 (first slice)
    */
   async readTags<T extends TagSpec[]>(
-    volumeID: string,
-    tags: T,
-    slice = 0
+    file: File,
+    tags: T
   ): Promise<Record<T[number]['name'], string>> {
-    const tagsArgs = tags.map((t) => {
-      const { strconv, tag } = t;
-      return `${strconv ? '@' : ''}${tag}`;
-    });
+    const tagsArgs = tags.map((t) => t.tag);
 
-    const results = await this.addTask(
-      'dicom',
-      ['readTags', 'output.json', volumeID, String(slice), ...tagsArgs],
-      [{ path: 'output.json', type: IOTypes.Text }],
-      []
-    );
+    const sleep = (milliseconds: number) => {
+      return new Promise(resolve => setTimeout(resolve, milliseconds))
+    }
 
-    const json = JSON.parse(results.outputs[0].data) ?? {};
+    while(this.tasksRunning) {
+      await sleep(1000);
+    }
+    this.tasksRunning = true;
+    const result = await readDICOMTags(this.webWorker, file, tagsArgs);
+    this.tasksRunning = false;
+    const tagValues = result.tags;
+
     return tags.reduce((info, t) => {
       const { tag, name } = t;
-      if (tag in json) {
-        return { ...info, [name]: json[tag] };
+      if (tagValues.has(tag)) {
+        return { ...info, [name]: tagValues.get(tag) };
       }
       return info;
     }, {} as Record<T[number]['name'], string>);
@@ -186,25 +165,33 @@ export class DICOMIO {
   /**
    * Retrieves a slice of a volume.
    * @async
-   * @param {String} volumeID the volume ID
-   * @param {Number} slice the slice to retrieve
+   * @param {File} file containing the slice
    * @param {Boolean} asThumbnail cast image to unsigned char. Defaults to false.
    * @returns ItkImage
    */
-  async getVolumeSlice(volumeID: string, slice: number, asThumbnail = false) {
+  async getVolumeSlice(file: File, asThumbnail: boolean = false) {
     await this.initialize();
 
+    const buffer = await file.arrayBuffer();
     const result = await this.addTask(
+      // module
       'dicom',
+      // args
       [
         'getSliceImage',
-        'output.json',
-        volumeID,
-        String(slice),
+        'output.iwi',
+        file.name
+        ,
         asThumbnail ? '1' : '0',
       ],
-      [{ path: 'output.json', type: IOTypes.Image }],
-      [],
+       // inputs
+       [{
+        path: file.name,
+        type: IOTypes.Binary,
+        data: new Uint8Array(buffer)
+      }],
+      // outputs
+      [{ path: 'output.iwi', type: IOTypes.Image }],
       -10 // computing thumbnails is a low priority task
     );
 
@@ -212,68 +199,16 @@ export class DICOMIO {
   }
 
   /**
-   * Builds a volume for a given volume ID.
+   * Builds a volume for a set of files.
    * @async
-   * @param {String} volumeID the volume ID
+   * @param {File[]} files the set of files to build volume from
    * @returns ItkImage
    */
-  async buildVolume(volumeID: string) {
+  async buildVolume(files: File[]) {
     await this.initialize();
 
-    const result = await this.addTask(
-      'dicom',
-      ['buildVolume', 'output.json', volumeID],
-      [{ path: 'output.json', type: IOTypes.Image }],
-      [],
-      10 // building volumes is high priority
-    );
+    const result = await readImageDICOMFileSeries(files)
 
-    // FIXME tranpose until itk.js consistently outputs col-major
-    // and ITKHelper is updated.
-    const image = result.outputs[0].data;
-    mat3.transpose(image.direction.data, image.direction.data);
-    return image;
-  }
-
-  /**
-   * Deletes all files associated with a volume.
-   * @async
-   * @param {String} volumeID the volume ID
-   */
-  async deleteVolume(volumeID: string) {
-    await this.initialize();
-    await this.addTask('dicom', ['deleteVolume', volumeID], [], []);
-  }
-
-  /**
-   * Reads a TRE file.
-   * @returns JSON
-   */
-  async readTRE(file: File) {
-    await this.initialize();
-
-    const fileData = {
-      name: file.name,
-      data: await readFileAsArrayBuffer(file),
-    };
-
-    const result = await this.addTask(
-      // module
-      'dicom',
-      // args
-      ['readTRE', 'output.json', file.name],
-      // outputs
-      [{ path: 'output.json', type: IOTypes.Text }],
-      // inputs
-      [
-        {
-          path: fileData.name,
-          type: IOTypes.Binary,
-          data: new Uint8Array(fileData.data),
-        },
-      ]
-    );
-
-    return JSON.parse(result.outputs[0].data);
+    return result.image;
   }
 }

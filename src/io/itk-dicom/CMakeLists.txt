@@ -30,6 +30,7 @@ find_package(ITK REQUIRED
     ITKMesh
     ITKSpatialObjects
     ITKIOSpatialObjects
+    WebAssemblyInterface
   )
 
 include(${ITK_USE_FILE})
