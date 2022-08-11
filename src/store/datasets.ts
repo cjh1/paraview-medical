@@ -8,7 +8,7 @@ import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
 import { useView3DStore } from './views-3D';
 import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
-import { useFileStore } from './files';
+import { useFileStore } from './datasets-files';
 
 export const DataType = {
   Image: 'Image',

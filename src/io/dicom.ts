@@ -7,7 +7,6 @@ import PriorityQueue from '../utils/priorityqueue';
 export interface TagSpec {
   name: string;
   tag: string;
-  strconv?: boolean;
 }
 
 // volume ID => file names
@@ -93,10 +92,10 @@ export class DICOMIO {
   }
 
   /**
-   * Imports files
+   * Categorize files
    * @async
    * @param {File[]} files
-   * @returns VolumeID[] a list of volumes parsed from the files
+   * @returns volumeID => File[] mapping
    */
   async categorizeFiles(files: File[]): Promise<VolumesToFilesMap> {
     await this.initialize();
@@ -149,7 +148,7 @@ export class DICOMIO {
       await sleep(1000);
     }
     this.tasksRunning = true;
-    const result = await readDICOMTags(this.webWorker, file, tagsArgs);
+    const result = await readDICOMTags(null, file, tagsArgs);
     this.tasksRunning = false;
     const tagValues = result.tags;
 

@@ -6,7 +6,7 @@ import { getCurrentInstance } from '../instances';
 import { DICOMIO } from '../io/dicom';
 import { pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
-import { useFileStore } from './files';
+import { useFileStore } from './datasets-files';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
