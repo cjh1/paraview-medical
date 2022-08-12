@@ -44,7 +44,10 @@ namespace fs = std::experimental::filesystem;
 #include "itkImageSeriesReader.h"
 #include "itkRescaleIntensityImageFilter.h"
 #include "itkVectorImage.h"
-#include "itkImageToWASMImageFilter.h"
+
+#include "itkOutputTextStream.h"
+#include "itkPipeline.h"
+#include "itkOutputTextStream.h"
 
 #include "gdcmImageHelper.h"
 #include "gdcmReader.h"
@@ -227,9 +230,21 @@ VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
  *
  * Return a mapping of volume ID to the files containing the volume.
  */
-const json categorizeFiles(FileNamesContainer &files) {
+const json categorizeFiles(itk::wasm::Pipeline & pipeline) {
+
+  // inputs
+  FileNamesContainer files;
+  pipeline.add_option("-f,--files", files, "File names to categorize")->required()->check(CLI::ExistingFile)->expected(1,-1);
+
+  // outputs
+  itk::wasm::OutputTextStream volumeMapJSONStream;
+  pipeline.add_option("volumeMap", volumeMapJSONStream, "JSON object encoding volumeID => filenames.")->required();
+
+  ITK_WASM_PARSE(pipeline);
 
   std::cout << files[0] << std::endl;
+
+  std::cout << "id: " << volumeMapJSONStream.GetIdentifier() << std::endl;
 
   // make tmp dir
   std::string tmpPath = "tmp";
@@ -277,26 +292,36 @@ const json categorizeFiles(FileNamesContainer &files) {
 
   fs::remove_all(tmpPath);
 
-  return json(curVolumeMap);
+  auto volumeMapJSON = json(curVolumeMap);
+
+  volumeMapJSONStream.Get() << volumeMapJSON;
+
+  return EXIT_SUCCESS;
+
+  //return json(curVolumeMap);
 }
 
 template <typename T>
 void writeImageToJSONFile(const std::string &fileName, typename itk::ImageSource<T>::OutputImageType *outputImage)
 {
-  auto imageToJSON = itk::ImageToWASMImageFilter<T>::New();
-  std::ofstream ofs(fileName);
-  imageToJSON->SetInput(outputImage);
-  imageToJSON->Update();
-  auto dataObject = imageToJSON->GetOutput();
-  auto json = dataObject->GetJSON();
-  ofs << json;
-  ofs.close();
+  // auto imageToJSON = itk::ImageToWASMImageFilter<T>::New();
+  // std::ofstream ofs(fileName);
+  // imageToJSON->SetInput(outputImage);
+  // imageToJSON->Update();
+  // auto dataObject = imageToJSON->GetOutput();
+  // auto json = dataObject->GetJSON();
+  // ofs << json;
+  // ofs.close();
 
-  std::cout << json << std::endl;
-  std::cout << "written!\n";
+  // std::cout << json << std::endl;
+  // std::cout << "written!\n";
 }
 
 void getSliceImage(const std::string &fileName, const std::string &outFileName, bool asThumbnail) {
+
+
+
+
 
   std::cout << fileName << std::endl;
   std::cout << outFileName << std::endl;
@@ -352,6 +377,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  std::cout << "main\n";
+
   std::string action(argv[1]);
 
   // need some IO so emscripten will import FS module
@@ -360,26 +387,28 @@ int main(int argc, char *argv[]) {
   std::cerr << "Action: " << action << ", runcount: " << ++rc
             << ", argc: " << argc << std::endl;
 
-  if (action == "categorize" && argc > 2) {
+  if (action == "categorize" || action == "--action" && argc > 2) {
     // dicom categorize output.json <FILES>
-    std::string outFileName = argv[2];
-    std::vector<std::string> rest(argv + 3, argv + argc);
+    //std::string outFileName = argv[2];
+    //std::vector<std::string> rest(argv + 3, argv + argc);
+     itk::wasm::Pipeline pipeline("VolView pipeline to access ", argc, argv);
+    pipeline.add_option("-a,--action", action, "File names to categorize");
 
     json info;
     try {
-      info = categorizeFiles(rest);
+      info = categorizeFiles(pipeline);
     } catch (const std::runtime_error &e) {
       std::cerr << "Runtime error: " << e.what() << std::endl;
     } catch (const itk::ExceptionObject &e) {
       std::cerr << "ITK error: " << e.what() << std::endl;
     }
 
-    std::cout << info.dump(-1, true, ' ') << std::endl;
+    // std::cout << info.dump(-1, true, ' ') << std::endl;
 
-    std::ofstream outfile;
-    outfile.open(outFileName);
-    outfile << info.dump(-1, true, ' ', json::error_handler_t::ignore);
-    outfile.close();
+    // std::ofstream outfile;
+    // outfile.open(outFileName);
+    // outfile << info.dump(-1, true, ' ', json::error_handler_t::ignore);
+    // outfile.close();
   } else if (action == "getSliceImage" && argc == 5) {
     // dicom getSliceImage outputImage.json FILE
     std::string outFileName = argv[2];

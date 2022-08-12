@@ -63,7 +63,7 @@ module.exports = {
           {
             from: path.join(__dirname, 'src', 'io', 'itk-dicom','web-build', 'dicom*'),
             to: path.join(__dirname, 'dist', 'itk', 'pipelines', '[name][ext]')
-          },
+          }
         ],
       }),
     ],

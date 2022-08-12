@@ -8,6 +8,7 @@ import { pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
 
+
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
 
@@ -307,7 +308,7 @@ export const useDICOMStore = defineStore('dicom', {
       volumeKey: string,
       sliceIndex: number,
       asThumbnail = false
-    ): Promise<object> {
+    ) {
       const dicomIO = getCurrentInstance<DICOMIO>(DICOMIOInst);
       const fileStore = useFileStore();
 
