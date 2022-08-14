@@ -47,21 +47,21 @@ export class DICOMIO {
    * @throws Error initialization failed
    */
   private async initialize() {
-    if (!this.initializeCheck) {
-      this.initializeCheck = new Promise<void>((resolve, reject) =>
-        this.runTask('dicom', [], [], [])
-          .then((result) => {
-            if (result.webWorker) {
-              this.webWorker = result.webWorker;
-              resolve();
-            } else {
-              reject(new Error('Could not initialize webworker'));
-            }
-          })
-          .catch(reject)
-      );
-    }
-    return this.initializeCheck;
+    // if (!this.initializeCheck) {
+    //   this.initializeCheck = new Promise<void>((resolve, reject) =>
+    //     this.runTask('dicom', [], [], [])
+    //       .then((result) => {
+    //         if (result.webWorker) {
+    //           this.webWorker = result.webWorker;
+    //           resolve();
+    //         } else {
+    //           reject(new Error('Could not initialize webworker'));
+    //         }
+    //       })
+    //       .catch(reject)
+    //   );
+    // }
+    // return this.initializeCheck;
   }
 
   /**
@@ -147,25 +147,27 @@ export class DICOMIO {
     await this.initialize();
 
     const buffer = await file.arrayBuffer();
+
+    const inputs = [{
+      type: InterfaceTypes.BinaryFile,
+      data: {
+        path: file.name,
+        data: new Uint8Array(buffer)
+      }
+    }];
+
+    const args = ['--action', 'getSliceImage', '--file', file.name, '--memory-io', '0']
+
+    const outputs = [
+      { type: InterfaceTypes.Image }
+    ]
+
     const result = await this.runTask(
       // module
       'dicom',
-      // args
-      [
-        'getSliceImage',
-        'output.iwi',
-        file.name
-        ,
-        asThumbnail ? '1' : '0',
-      ],
-       // inputs
-       [{
-        path: file.name,
-        type: IOTypes.Binary,
-        data: new Uint8Array(buffer)
-      }],
-      // outputs
-      [{ path: 'output.iwi', type: IOTypes.Image }]
+      args,
+      inputs,
+      outputs
     );
 
     return result.outputs[0].data;

@@ -48,6 +48,7 @@ namespace fs = std::experimental::filesystem;
 #include "itkOutputTextStream.h"
 #include "itkPipeline.h"
 #include "itkOutputTextStream.h"
+#include "itkOutputImage.h"
 
 #include "gdcmImageHelper.h"
 #include "gdcmReader.h"
@@ -230,7 +231,7 @@ VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
  *
  * Return a mapping of volume ID to the files containing the volume.
  */
-const json categorizeFiles(itk::wasm::Pipeline & pipeline) {
+int categorizeFiles(itk::wasm::Pipeline &pipeline) {
 
   // inputs
   FileNamesContainer files;
@@ -301,38 +302,39 @@ const json categorizeFiles(itk::wasm::Pipeline & pipeline) {
   //return json(curVolumeMap);
 }
 
-template <typename T>
-void writeImageToJSONFile(const std::string &fileName, typename itk::ImageSource<T>::OutputImageType *outputImage)
-{
-  // auto imageToJSON = itk::ImageToWASMImageFilter<T>::New();
-  // std::ofstream ofs(fileName);
-  // imageToJSON->SetInput(outputImage);
-  // imageToJSON->Update();
-  // auto dataObject = imageToJSON->GetOutput();
-  // auto json = dataObject->GetJSON();
-  // ofs << json;
-  // ofs.close();
+// template <typename T>
+// void writeImageToJSONFile(const std::string &fileName, typename itk::ImageSource<T>::OutputImageType *outputImage)
+// {
+//   // auto imageToJSON = itk::ImageToWASMImageFilter<T>::New();
+//   // std::ofstream ofs(fileName);
+//   // imageToJSON->SetInput(outputImage);
+//   // imageToJSON->Update();
+//   // auto dataObject = imageToJSON->GetOutput();
+//   // auto json = dataObject->GetJSON();
+//   // ofs << json;
+//   // ofs.close();
 
-  // std::cout << json << std::endl;
-  // std::cout << "written!\n";
-}
+//   // std::cout << json << std::endl;
+//   // std::cout << "written!\n";
+// }
 
-void getSliceImage(const std::string &fileName, const std::string &outFileName, bool asThumbnail) {
+int getSliceImage(itk::wasm::Pipeline &pipeline) {
 
+  // inputs
+  std::string fileName;
+  pipeline.add_option("-f,--file", fileName, "File name generate image for")->required()->check(CLI::ExistingFile)->expected(1);
 
+  bool asThumbnail = false;
+  pipeline.add_option("-t,--thumbnail", asThumbnail, "Generate thumbnail image");
 
+  ITK_WASM_PRE_PARSE(pipeline);
 
-
-  std::cout << fileName << std::endl;
-  std::cout << outFileName << std::endl;
-
+  // Setup reader
   typename DicomIO::Pointer dicomIO = DicomIO::New();
   dicomIO->LoadPrivateTagsOff();
   typename ReaderType::Pointer reader = ReaderType::New();
   reader->SetFileName(fileName);
 
-  // cast images to unsigned char for easier thumbnailing to canvas ImageData
-  // if asThumbnail is specified.
   if (asThumbnail) {
     using InputImageType = ImageType;
     using OutputPixelType = unsigned char;
@@ -342,6 +344,13 @@ void getSliceImage(const std::string &fileName, const std::string &outFileName, 
     using CastImageFilter =
         itk::CastImageFilter<InputImageType, OutputImageType>;
 
+    // outputs
+    using WasmOutputImageType = itk::wasm::OutputImage<OutputImageType>;
+    WasmOutputImageType outputImage;
+    pipeline.add_option("OutputImage", outputImage, "The slice")->required();
+
+    ITK_WASM_PARSE(pipeline);
+
     auto rescaleFilter = RescaleFilter::New();
     rescaleFilter->SetInput(reader->GetOutput());
     rescaleFilter->SetOutputMinimum(0);
@@ -350,54 +359,56 @@ void getSliceImage(const std::string &fileName, const std::string &outFileName, 
 
     auto castFilter = CastImageFilter::New();
     castFilter->SetInput(rescaleFilter->GetOutput());
+    castFilter->Update();
 
+    // Set the output image
+    outputImage.Set(castFilter->GetOutput());
+  }
+  else {
+    // outputs
+    using WasmOutputImageType = itk::wasm::OutputImage<ImageType>;
+    WasmOutputImageType outputImage;
+    pipeline.add_option("OutputImage", outputImage, "The slice")->required();
 
-    using WriterType = itk::ImageFileWriter<OutputImageType>;
-    auto writer = WriterType::New();
-    writer->SetInput(castFilter->GetOutput());
-    writer->SetFileName(outFileName);
-    writer->Update();
+    ITK_WASM_PARSE(pipeline);
 
-    //writeImageToJSONFile<OutputImageType>(outFileName, castFilter->GetOutput());
-  } else {
-    //writeImageToJSONFile<ImageType>(outFileName, reader->GetOutput());
-    using WriterType = itk::ImageFileWriter<ImageType>;
-    auto writer = WriterType::New();
-    writer->SetInput(reader->GetOutput());
-    writer->SetFileName(outFileName);
-    writer->Update();
+    outputImage.Set(reader->GetOutput());
   }
 
-  std::cout << dirExists(outFileName) << std::endl;
+  return EXIT_SUCCESS;
 }
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " [categorize|readTags|getSliceImage|buildVolume]" << std::endl;
-    return 1;
-  }
+  // if (argc < 2) {
+  //   std::cerr << "Usage: " << argv[0] << " [categorize|readTags|getSliceImage|buildVolume]" << std::endl;
+  //   return 1;
+  // }
 
-  std::cout << "main\n";
 
-  std::string action(argv[1]);
 
   // need some IO so emscripten will import FS module
   // otherwise, you'll get an "FS not found" error at runtime
   // https://github.com/emscripten-core/emscripten/issues/854
-  std::cerr << "Action: " << action << ", runcount: " << ++rc
-            << ", argc: " << argc << std::endl;
+  //std::cerr << "Action: " << action << ", runcount: " << ++rc
+  //          << ", argc: " << argc << std::endl;
 
-  if (action == "categorize" || action == "--action" && argc > 2) {
+  std::string action;
+  itk::wasm::Pipeline pipeline("VolView pipeline to access ", argc, argv);
+  pipeline.add_option("-a,--action", action, "File names to categorize")->required();
+
+  // Pre parse so we can get the action
+  ITK_WASM_PRE_PARSE(pipeline)
+
+  if (action == "categorize") {
     // dicom categorize output.json <FILES>
     //std::string outFileName = argv[2];
     //std::vector<std::string> rest(argv + 3, argv + argc);
-     itk::wasm::Pipeline pipeline("VolView pipeline to access ", argc, argv);
-    pipeline.add_option("-a,--action", action, "File names to categorize");
 
     json info;
     try {
-      info = categorizeFiles(pipeline);
+      return categorizeFiles(pipeline);
     } catch (const std::runtime_error &e) {
+      // TODO: use CLI::Error
       std::cerr << "Runtime error: " << e.what() << std::endl;
     } catch (const itk::ExceptionObject &e) {
       std::cerr << "ITK error: " << e.what() << std::endl;
@@ -409,16 +420,11 @@ int main(int argc, char *argv[]) {
     // outfile.open(outFileName);
     // outfile << info.dump(-1, true, ' ', json::error_handler_t::ignore);
     // outfile.close();
-  } else if (action == "getSliceImage" && argc == 5) {
+  } else if (action == "getSliceImage") {
     // dicom getSliceImage outputImage.json FILE
-    std::string outFileName = argv[2];
-    std::string fileName = argv[3];
-    bool asThumbnail = std::string(argv[4]) == "1";
 
     try {
-
-      std::cout << "file: " << fileName << std::endl;
-      getSliceImage(fileName, outFileName, asThumbnail);
+      return getSliceImage(pipeline);
     } catch (const itk::ExceptionObject &e) {
       std::cerr << "ITK error: " << e.what() << '\n';
     } catch (const std::runtime_error &e) {
