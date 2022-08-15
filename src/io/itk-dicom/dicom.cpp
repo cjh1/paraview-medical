@@ -273,17 +273,17 @@ int categorizeFiles(itk::wasm::Pipeline &pipeline) {
   auto &gdcmSeriesUIDs = seriesFileNames->GetSeriesUIDs();
 
   // The initial series UIDs are used as the basis for our volume IDs.
-  VolumeMapType curVolumeMap;
+  VolumeMapType volumeMap;
   for (auto seriesUID : gdcmSeriesUIDs) {
     std::cout << "in loop\n";
-    curVolumeMap[seriesUID] = seriesFileNames->GetFileNames(seriesUID.c_str());
+    volumeMap[seriesUID] = seriesFileNames->GetFileNames(seriesUID.c_str());
   }
 
   // further restrict on orientation
-  curVolumeMap = SeparateOnImageOrientation(curVolumeMap);
+  volumeMap = SeparateOnImageOrientation(volumeMap);
 
   // strip off tmp prefix
-  for (auto &entry: curVolumeMap) {
+  for (auto &entry: volumeMap) {
     auto &fileNames = entry.second;
     for(auto &f : fileNames) {
       f = f.substr(tmpPath.size() + 1);
@@ -293,8 +293,7 @@ int categorizeFiles(itk::wasm::Pipeline &pipeline) {
 
   fs::remove_all(tmpPath);
 
-  auto volumeMapJSON = json(curVolumeMap);
-
+  auto volumeMapJSON = json(volumeMap);
   volumeMapJSONStream.Get() << volumeMapJSON;
 
   return EXIT_SUCCESS;
@@ -337,7 +336,7 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
 
   if (asThumbnail) {
     using InputImageType = ImageType;
-    using OutputPixelType = unsigned char;
+    using OutputPixelType = uint8_t;
     using OutputImageType = itk::Image<OutputPixelType, 3>;
     using RescaleFilter =
         itk::RescaleIntensityImageFilter<InputImageType, InputImageType>;
@@ -360,6 +359,8 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
     auto castFilter = CastImageFilter::New();
     castFilter->SetInput(rescaleFilter->GetOutput());
     castFilter->Update();
+
+    std::cout << "cast\n";
 
     // Set the output image
     outputImage.Set(castFilter->GetOutput());

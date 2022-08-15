@@ -156,7 +156,7 @@ export class DICOMIO {
       }
     }];
 
-    const args = ['--action', 'getSliceImage', '--file', file.name, '--memory-io', '0']
+    const args = ['--action', 'getSliceImage', '--thumbnail', asThumbnail.toString(), '--file', file.name, '--memory-io', '0']
 
     const outputs = [
       { type: InterfaceTypes.Image }
@@ -169,6 +169,8 @@ export class DICOMIO {
       inputs,
       outputs
     );
+
+    console.log(result)
 
     return result.outputs[0].data;
   }
@@ -183,7 +185,7 @@ export class DICOMIO {
     await this.initialize();
 
     const result = await readImageDICOMFileSeries(files)
-
+    console.log(result)
     return result.image;
   }
 }
