@@ -37,7 +37,7 @@ export class DICOMIO {
     console.log(args)
     console.log(outputs)
     console.log(inputs)
-    return runPipeline(null, module, args, outputs, inputs);
+    return runPipeline(this.webWorker, module, args, outputs, inputs);
   }
 
   /**
@@ -47,21 +47,21 @@ export class DICOMIO {
    * @throws Error initialization failed
    */
   private async initialize() {
-    // if (!this.initializeCheck) {
-    //   this.initializeCheck = new Promise<void>((resolve, reject) =>
-    //     this.runTask('dicom', [], [], [])
-    //       .then((result) => {
-    //         if (result.webWorker) {
-    //           this.webWorker = result.webWorker;
-    //           resolve();
-    //         } else {
-    //           reject(new Error('Could not initialize webworker'));
-    //         }
-    //       })
-    //       .catch(reject)
-    //   );
-    // }
-    // return this.initializeCheck;
+    if (!this.initializeCheck) {
+      this.initializeCheck = new Promise<void>((resolve, reject) =>
+        this.runTask('dicom', [], [], [])
+          .then((result) => {
+            if (result.webWorker) {
+              this.webWorker = result.webWorker;
+              resolve();
+            } else {
+              reject(new Error('Could not initialize webworker'));
+            }
+          })
+          .catch(reject)
+      );
+    }
+    return this.initializeCheck;
   }
 
   /**

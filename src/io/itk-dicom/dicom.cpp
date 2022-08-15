@@ -81,19 +81,6 @@ extern "C" const char *EMSCRIPTEN_KEEPALIVE unpack_error_what(intptr_t ptr) {
 }
 #endif
 
-void list_dir(const char *path) {
-  struct dirent *entry;
-  DIR *dir = opendir(path);
-
-  if (dir == NULL) {
-    return;
-  }
-  while ((entry = readdir(dir)) != NULL) {
-    std::cerr << entry->d_name << std::endl;
-  }
-  closedir(dir);
-}
-
 bool dirExists(std::string path) {
   struct stat buf;
   return 0 == stat(path.c_str(), &buf);
@@ -105,17 +92,6 @@ void replaceChars(std::string &str, char search, char replaceChar) {
   while ((pos = str.find(search)) != std::string::npos) {
     str.replace(pos, 1, replace);
   }
-}
-
-std::string
-unpackMetaAsString(const itk::MetaDataObjectBase::Pointer &metaValue) {
-  using MetaDataStringType = itk::MetaDataObject<std::string>;
-  MetaDataStringType::Pointer value =
-      dynamic_cast<MetaDataStringType *>(metaValue.GetPointer());
-  if (value != nullptr) {
-    return value->GetMetaDataObjectValue();
-  }
-  return {};
 }
 
 // convenience method for making world-writable dirs
@@ -243,25 +219,13 @@ int categorizeFiles(itk::wasm::Pipeline &pipeline) {
 
   ITK_WASM_PARSE(pipeline);
 
-  std::cout << files[0] << std::endl;
-
-  std::cout << "id: " << volumeMapJSONStream.GetIdentifier() << std::endl;
-
-  // make tmp dir
-  std::string tmpPath = "tmp";
-  makedir(tmpPath);
-
-  // move all files to tmp
-  for (auto file : files) {
-    auto dst = tmpPath + "/" + file;
-    movefile(file, dst);
-  }
+  std::string path = "./";
 
   // parse out series
   typedef itk::GDCMSeriesFileNames SeriesFileNames;
   SeriesFileNames::Pointer seriesFileNames = SeriesFileNames::New();
   // files are all default dumped to cwd
-  seriesFileNames->SetDirectory(tmpPath);
+  seriesFileNames->SetDirectory(path);
   seriesFileNames->SetUseSeriesDetails(true);
   seriesFileNames->SetGlobalWarningDisplay(false);
   seriesFileNames->AddSeriesRestriction("0008|0021");
@@ -275,7 +239,6 @@ int categorizeFiles(itk::wasm::Pipeline &pipeline) {
   // The initial series UIDs are used as the basis for our volume IDs.
   VolumeMapType volumeMap;
   for (auto seriesUID : gdcmSeriesUIDs) {
-    std::cout << "in loop\n";
     volumeMap[seriesUID] = seriesFileNames->GetFileNames(seriesUID.c_str());
   }
 
@@ -286,37 +249,21 @@ int categorizeFiles(itk::wasm::Pipeline &pipeline) {
   for (auto &entry: volumeMap) {
     auto &fileNames = entry.second;
     for(auto &f : fileNames) {
-      f = f.substr(tmpPath.size() + 1);
+      f = f.substr(path.size());
       std::cout << f << std::endl;
     }
   }
 
-  fs::remove_all(tmpPath);
-
+  // Generate the JSON and add to output stream
   auto volumeMapJSON = json(volumeMap);
   volumeMapJSONStream.Get() << volumeMapJSON;
 
   return EXIT_SUCCESS;
-
-  //return json(curVolumeMap);
 }
 
-// template <typename T>
-// void writeImageToJSONFile(const std::string &fileName, typename itk::ImageSource<T>::OutputImageType *outputImage)
-// {
-//   // auto imageToJSON = itk::ImageToWASMImageFilter<T>::New();
-//   // std::ofstream ofs(fileName);
-//   // imageToJSON->SetInput(outputImage);
-//   // imageToJSON->Update();
-//   // auto dataObject = imageToJSON->GetOutput();
-//   // auto json = dataObject->GetJSON();
-//   // ofs << json;
-//   // ofs.close();
-
-//   // std::cout << json << std::endl;
-//   // std::cout << "written!\n";
-// }
-
+/**
+ * Reads an image slice and returns the optionally thumbnailed image.
+ */
 int getSliceImage(itk::wasm::Pipeline &pipeline) {
 
   // inputs
@@ -360,8 +307,6 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
     castFilter->SetInput(rescaleFilter->GetOutput());
     castFilter->Update();
 
-    std::cout << "cast\n";
-
     // Set the output image
     outputImage.Set(castFilter->GetOutput());
   }
@@ -373,6 +318,7 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
 
     ITK_WASM_PARSE(pipeline);
 
+    reader->Update();
     outputImage.Set(reader->GetOutput());
   }
 
@@ -380,32 +326,14 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
 }
 
 int main(int argc, char *argv[]) {
-  // if (argc < 2) {
-  //   std::cerr << "Usage: " << argv[0] << " [categorize|readTags|getSliceImage|buildVolume]" << std::endl;
-  //   return 1;
-  // }
-
-
-
-  // need some IO so emscripten will import FS module
-  // otherwise, you'll get an "FS not found" error at runtime
-  // https://github.com/emscripten-core/emscripten/issues/854
-  //std::cerr << "Action: " << action << ", runcount: " << ++rc
-  //          << ", argc: " << argc << std::endl;
-
   std::string action;
   itk::wasm::Pipeline pipeline("VolView pipeline to access ", argc, argv);
-  pipeline.add_option("-a,--action", action, "File names to categorize")->required();
+  pipeline.add_option("-a,--action", action, "The action to run")->check(CLI::IsMember({"categorize", "getSliceImage"}));
 
   // Pre parse so we can get the action
   ITK_WASM_PRE_PARSE(pipeline)
 
   if (action == "categorize") {
-    // dicom categorize output.json <FILES>
-    //std::string outFileName = argv[2];
-    //std::vector<std::string> rest(argv + 3, argv + argc);
-
-    json info;
     try {
       return categorizeFiles(pipeline);
     } catch (const std::runtime_error &e) {
@@ -414,13 +342,6 @@ int main(int argc, char *argv[]) {
     } catch (const itk::ExceptionObject &e) {
       std::cerr << "ITK error: " << e.what() << std::endl;
     }
-
-    // std::cout << info.dump(-1, true, ' ') << std::endl;
-
-    // std::ofstream outfile;
-    // outfile.open(outFileName);
-    // outfile << info.dump(-1, true, ' ', json::error_handler_t::ignore);
-    // outfile.close();
   } else if (action == "getSliceImage") {
     // dicom getSliceImage outputImage.json FILE
 

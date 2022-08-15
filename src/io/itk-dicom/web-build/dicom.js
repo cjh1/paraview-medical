@@ -4998,20 +4998,6 @@ function ___syscall_readlinkat(dirfd, path, buf, bufsize) {
  }
 }
 
-function ___syscall_renameat(olddirfd, oldpath, newdirfd, newpath) {
- try {
-  oldpath = SYSCALLS.getStr(oldpath);
-  newpath = SYSCALLS.getStr(newpath);
-  oldpath = SYSCALLS.calculateAt(olddirfd, oldpath);
-  newpath = SYSCALLS.calculateAt(newdirfd, newpath);
-  FS.rename(oldpath, newpath);
-  return 0;
- } catch (e) {
-  if (typeof FS == "undefined" || !(e instanceof FS.ErrnoError)) throw e;
-  return -e.errno;
- }
-}
-
 var SOCKFS = {
  mount: function(mount) {
   Module["websocket"] = Module["websocket"] && "object" === typeof Module["websocket"] ? Module["websocket"] : {};
@@ -7287,7 +7273,6 @@ var asmLibraryArg = {
  "__syscall_newfstatat": ___syscall_newfstatat,
  "__syscall_openat": ___syscall_openat,
  "__syscall_readlinkat": ___syscall_readlinkat,
- "__syscall_renameat": ___syscall_renameat,
  "__syscall_socket": ___syscall_socket,
  "__syscall_stat64": ___syscall_stat64,
  "__syscall_unlinkat": ___syscall_unlinkat,
@@ -7341,7 +7326,6 @@ var asmLibraryArg = {
  "invoke_iiiiij": invoke_iiiiij,
  "invoke_iiiij": invoke_iiiij,
  "invoke_iiij": invoke_iiij,
- "invoke_jiii": invoke_jiii,
  "invoke_jiiii": invoke_jiiii,
  "invoke_v": invoke_v,
  "invoke_vi": invoke_vi,
@@ -7469,8 +7453,6 @@ var dynCall_iiijii = Module["dynCall_iiijii"] = createExportWrapper("dynCall_iii
 var dynCall_ijiii = Module["dynCall_ijiii"] = createExportWrapper("dynCall_ijiii");
 
 var dynCall_iijiii = Module["dynCall_iijiii"] = createExportWrapper("dynCall_iijiii");
-
-var dynCall_jiii = Module["dynCall_jiii"] = createExportWrapper("dynCall_jiii");
 
 var dynCall_iiiij = Module["dynCall_iiiij"] = createExportWrapper("dynCall_iiiij");
 
@@ -7819,17 +7801,6 @@ function invoke_iiiiij(index, a1, a2, a3, a4, a5, a6) {
  var sp = stackSave();
  try {
   return dynCall_iiiiij(index, a1, a2, a3, a4, a5, a6);
- } catch (e) {
-  stackRestore(sp);
-  if (e !== e + 0) throw e;
-  _setThrew(1, 0);
- }
-}
-
-function invoke_jiii(index, a1, a2, a3) {
- var sp = stackSave();
- try {
-  return dynCall_jiii(index, a1, a2, a3);
  } catch (e) {
   stackRestore(sp);
   if (e !== e + 0) throw e;
