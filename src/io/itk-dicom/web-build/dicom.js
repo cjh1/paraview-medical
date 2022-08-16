@@ -7352,13 +7352,13 @@ var ___wasm_call_ctors = Module["___wasm_call_ctors"] = createExportWrapper("__w
 
 var _unpack_error_what = Module["_unpack_error_what"] = createExportWrapper("unpack_error_what");
 
-var ___errno_location = Module["___errno_location"] = createExportWrapper("__errno_location");
-
 var _main = Module["_main"] = createExportWrapper("main");
 
 var _malloc = Module["_malloc"] = createExportWrapper("malloc");
 
 var _free = Module["_free"] = createExportWrapper("free");
+
+var ___errno_location = Module["___errno_location"] = createExportWrapper("__errno_location");
 
 var _fflush = Module["_fflush"] = createExportWrapper("fflush");
 

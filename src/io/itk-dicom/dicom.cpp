@@ -26,26 +26,23 @@ namespace fs = std::experimental::filesystem;
 #include <emscripten.h>
 #endif
 
-#include <nlohmann/json.hpp>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 
 #include "itkCastImageFilter.h"
-#include "itkCommonEnums.h"
 #include "itkGDCMImageIO.h"
 #include "itkGDCMSeriesFileNames.h"
 #include "itkImage.h"
 #include "itkImageFileReader.h"
-#include "itkImageFileWriter.h"
 #include "itkImageIOBase.h"
 #include "itkImageSeriesReader.h"
 #include "itkRescaleIntensityImageFilter.h"
 #include "itkVectorImage.h"
 
+#include "itkOutputImage.h"
 #include "itkOutputTextStream.h"
 #include "itkPipeline.h"
-#include "itkOutputTextStream.h"
-#include "itkOutputImage.h"
 
 #include "gdcmImageHelper.h"
 #include "gdcmReader.h"
@@ -57,17 +54,13 @@ using ImageType = itk::Image<float, 3>;
 using ReaderType = itk::ImageFileReader<ImageType>;
 using SeriesReaderType = itk::ImageSeriesReader<ImageType>;
 using FileNamesContainer = std::vector<std::string>;
-using DictionaryType = itk::MetaDataDictionary;
 using DicomIO = itk::GDCMImageIO;
-using MetaDataStringType = itk::MetaDataObject<std::string>;
-using TagList = std::vector<std::string>;
 // volumeID -> filenames[]
 using VolumeMapType = std::unordered_map<std::string, std::vector<std::string>>;
 // VolumeID[]
 using VolumeIDList = std::vector<std::string>;
 
 static const double EPSILON = 10e-5;
-static VolumeMapType VolumeMap;
 
 #ifdef WEB_BUILD
 extern "C" const char *EMSCRIPTEN_KEEPALIVE unpack_error_what(intptr_t ptr) {
@@ -76,34 +69,11 @@ extern "C" const char *EMSCRIPTEN_KEEPALIVE unpack_error_what(intptr_t ptr) {
 }
 #endif
 
-bool dirExists(std::string path) {
-  struct stat buf;
-  return 0 == stat(path.c_str(), &buf);
-}
-
 void replaceChars(std::string &str, char search, char replaceChar) {
   int pos;
   std::string replace(1, replaceChar);
   while ((pos = str.find(search)) != std::string::npos) {
     str.replace(pos, 1, replace);
-  }
-}
-
-// convenience method for making world-writable dirs
-void makedir(const std::string &dirName) {
-  if (-1 == mkdir(dirName.c_str(), 0777)) {
-    if (errno != EEXIST) {
-      throw std::runtime_error(std::string("makedir error: ") +
-                               std::strerror(errno));
-    }
-  }
-}
-
-// convenience method for moving files
-void movefile(const std::string &src, const std::string &dst) {
-  if (0 != std::rename(src.c_str(), dst.c_str())) {
-    throw std::runtime_error("Failed to move file: " + src + " to " + dst +
-                             ": " + std::strerror(errno));
   }
 }
 
@@ -152,7 +122,8 @@ VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
   std::vector<std::pair<std::vector<double>, std::string>> cosinesToID;
 
   // append unique ID part to the volume ID, based on cosines
-  // The format replaces non-alphanumeric chars to be semi-consistent with DICOM UID spec,
+  // The format replaces non-alphanumeric chars to be semi-consistent with DICOM
+  // UID spec,
   //   and to make debugging easier when looking at the full volume IDs.
   // Format: COSINE || "S" || COSINE || "S" || ...
   //   COSINE: A decimal number -DD.DDDD gets reformatted into NDDSDDDD
@@ -170,7 +141,6 @@ VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
 
     return concatenated;
   };
-
 
   for (const auto &[volumeID, names] : volumeMap) {
     for (const auto &filename : names) {
@@ -198,7 +168,8 @@ VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
 }
 
 /**
- * categorizeFiles extracts out the volumes contained within a set of DICOM files.
+ * categorizeFiles extracts out the volumes contained within a set of DICOM
+ * files.
  *
  * Return a mapping of volume ID to the files containing the volume.
  */
@@ -206,11 +177,17 @@ int categorizeFiles(itk::wasm::Pipeline &pipeline) {
 
   // inputs
   FileNamesContainer files;
-  pipeline.add_option("-f,--files", files, "File names to categorize")->required()->check(CLI::ExistingFile)->expected(1,-1);
+  pipeline.add_option("-f,--files", files, "File names to categorize")
+      ->required()
+      ->check(CLI::ExistingFile)
+      ->expected(1, -1);
 
   // outputs
   itk::wasm::OutputTextStream volumeMapJSONStream;
-  pipeline.add_option("volumeMap", volumeMapJSONStream, "JSON object encoding volumeID => filenames.")->required();
+  pipeline
+      .add_option("volumeMap", volumeMapJSONStream,
+                  "JSON object encoding volumeID => filenames.")
+      ->required();
 
   ITK_WASM_PARSE(pipeline);
 
@@ -241,9 +218,9 @@ int categorizeFiles(itk::wasm::Pipeline &pipeline) {
   volumeMap = SeparateOnImageOrientation(volumeMap);
 
   // strip off tmp prefix
-  for (auto &entry: volumeMap) {
+  for (auto &entry : volumeMap) {
     auto &fileNames = entry.second;
-    for(auto &f : fileNames) {
+    for (auto &f : fileNames) {
       f = f.substr(path.size());
       std::cout << f << std::endl;
     }
@@ -263,10 +240,14 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
 
   // inputs
   std::string fileName;
-  pipeline.add_option("-f,--file", fileName, "File name generate image for")->required()->check(CLI::ExistingFile)->expected(1);
+  pipeline.add_option("-f,--file", fileName, "File name generate image for")
+      ->required()
+      ->check(CLI::ExistingFile)
+      ->expected(1);
 
   bool asThumbnail = false;
-  pipeline.add_option("-t,--thumbnail", asThumbnail, "Generate thumbnail image");
+  pipeline.add_option("-t,--thumbnail", asThumbnail,
+                      "Generate thumbnail image");
 
   ITK_WASM_PRE_PARSE(pipeline);
 
@@ -295,8 +276,7 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
     auto rescaleFilter = RescaleFilter::New();
     rescaleFilter->SetInput(reader->GetOutput());
     rescaleFilter->SetOutputMinimum(0);
-    rescaleFilter->SetOutputMaximum(
-        itk::NumericTraits<OutputPixelType>::max());
+    rescaleFilter->SetOutputMaximum(itk::NumericTraits<OutputPixelType>::max());
 
     auto castFilter = CastImageFilter::New();
     castFilter->SetInput(rescaleFilter->GetOutput());
@@ -304,8 +284,7 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
 
     // Set the output image
     outputImage.Set(castFilter->GetOutput());
-  }
-  else {
+  } else {
     // outputs
     using WasmOutputImageType = itk::wasm::OutputImage<ImageType>;
     WasmOutputImageType outputImage;
@@ -322,8 +301,10 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
 
 int main(int argc, char *argv[]) {
   std::string action;
-  itk::wasm::Pipeline pipeline("VolView pipeline to access DICOM data", argc, argv);
-  pipeline.add_option("-a,--action", action, "The action to run")->check(CLI::IsMember({"categorize", "getSliceImage"}));
+  itk::wasm::Pipeline pipeline("VolView pipeline to access DICOM data", argc,
+                               argv);
+  pipeline.add_option("-a,--action", action, "The action to run")
+      ->check(CLI::IsMember({"categorize", "getSliceImage"}));
 
   // Pre parse so we can get the action
   ITK_WASM_PRE_PARSE(pipeline)
