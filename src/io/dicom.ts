@@ -33,10 +33,6 @@ export class DICOMIO {
     outputs: any[]
   ) {
 
-    console.log("run pipele")
-    console.log(args)
-    console.log(outputs)
-    console.log(inputs)
     return runPipeline(this.webWorker, module, args, outputs, inputs);
   }
 
@@ -72,8 +68,6 @@ export class DICOMIO {
    */
   async categorizeFiles(files: File[]): Promise<VolumesToFilesMap> {
     await this.initialize();
-
-    console.log('cat')
 
     const inputs = await Promise.all(
       files.map(async (file) => {
@@ -169,8 +163,6 @@ export class DICOMIO {
       inputs,
       outputs
     );
-
-    console.log(result)
 
     return result.outputs[0].data;
   }

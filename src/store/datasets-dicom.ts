@@ -123,8 +123,6 @@ export const useDICOMStore = defineStore('dicom', {
 
       const dicomIO = getCurrentInstance<DICOMIO>(DICOMIOInst);
 
-      console.log("after")
-
       if (!files.length) {
         return [];
       }
@@ -167,8 +165,6 @@ export const useDICOMStore = defineStore('dicom', {
               { name: 'SeriesNumber', tag: '0020|0011' },
               { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
             ]);
-
-            console.log(info)
 
             // TODO parse the raw string values
             const patient = {
@@ -219,7 +215,6 @@ export const useDICOMStore = defineStore('dicom', {
        })
       );
 
-      console.log('done')
       return updatedVolumeKeys;
     },
 

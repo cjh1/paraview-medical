@@ -8,7 +8,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -28,8 +27,6 @@ namespace fs = std::experimental::filesystem;
 #endif
 
 #include <nlohmann/json.hpp>
-#include <rapidjson/ostreamwrapper.h>
-#include <rapidjson/writer.h>
 #include <fstream>
 #include <iostream>
 
@@ -54,7 +51,6 @@ namespace fs = std::experimental::filesystem;
 #include "gdcmReader.h"
 
 #include "charset.hpp"
-#include "readTRE.hpp"
 
 using json = nlohmann::json;
 using ImageType = itk::Image<float, 3>;
@@ -70,7 +66,6 @@ using VolumeMapType = std::unordered_map<std::string, std::vector<std::string>>;
 // VolumeID[]
 using VolumeIDList = std::vector<std::string>;
 
-static int rc = 0;
 static const double EPSILON = 10e-5;
 static VolumeMapType VolumeMap;
 
@@ -327,32 +322,20 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
 
 int main(int argc, char *argv[]) {
   std::string action;
-  itk::wasm::Pipeline pipeline("VolView pipeline to access ", argc, argv);
+  itk::wasm::Pipeline pipeline("VolView pipeline to access DICOM data", argc, argv);
   pipeline.add_option("-a,--action", action, "The action to run")->check(CLI::IsMember({"categorize", "getSliceImage"}));
 
   // Pre parse so we can get the action
   ITK_WASM_PRE_PARSE(pipeline)
 
   if (action == "categorize") {
-    try {
-      return categorizeFiles(pipeline);
-    } catch (const std::runtime_error &e) {
-      // TODO: use CLI::Error
-      std::cerr << "Runtime error: " << e.what() << std::endl;
-    } catch (const itk::ExceptionObject &e) {
-      std::cerr << "ITK error: " << e.what() << std::endl;
-    }
-  } else if (action == "getSliceImage") {
-    // dicom getSliceImage outputImage.json FILE
 
-    try {
-      return getSliceImage(pipeline);
-    } catch (const itk::ExceptionObject &e) {
-      std::cerr << "ITK error: " << e.what() << '\n';
-    } catch (const std::runtime_error &e) {
-      std::cerr << "Runtime error: " << e.what() << std::endl;
-    }
+    ITK_WASM_CATCH_EXCEPTION(pipeline, categorizeFiles(pipeline));
+
+  } else if (action == "getSliceImage") {
+
+    ITK_WASM_CATCH_EXCEPTION(pipeline, getSliceImage(pipeline));
   }
 
-  return 0;
+  return EXIT_SUCCESS;
 }

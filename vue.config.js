@@ -13,7 +13,8 @@ const ITK_WASM_INCLUDE = [
   'VTK',
   'BMP',
   'GDCM',
-  'ReadDICOMTags'
+  'ReadDICOMTags',
+  'ReadImageDICOMFileSeries'
 ];
 
 const itkConfig = path.resolve(__dirname, 'src', 'io', 'itk', 'itkConfig.js')
@@ -55,8 +56,7 @@ module.exports = {
             filter: (resourcePath) => {
               console.log(resourcePath)
               return ITK_WASM_INCLUDE.some((prefix) =>
-                true
-                //path.basename(resourcePath).startsWith(prefix)
+                path.basename(resourcePath).startsWith(prefix)
               );
             },
           },
